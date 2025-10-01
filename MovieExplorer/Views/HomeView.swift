@@ -4,68 +4,59 @@ import CoreData
 
 struct HomeView: View {
     @StateObject private var homeViewModel: HomeViewModel
-    @State private var searchMovie: String = ""
-    
+  
     init(context: NSManagedObjectContext) {
         _homeViewModel = StateObject(wrappedValue: HomeViewModel(context: context))
     }
     
-    @FetchRequest(
-        sortDescriptors: [NSSortDescriptor(keyPath: \Movie.released, ascending: false)],
-        animation: .default
-    )
-    private var fetchedMovies: FetchedResults<Movie>
-    
-    private var filteredMovies: [Movie] {
-        if searchMovie.isEmpty {
-            return Array(fetchedMovies)
-        } else {
-            return fetchedMovies.filter { movie in
-                movie.title?.localizedCaseInsensitiveContains(searchMovie) ?? false
-            }
-        }
-    }
-    
     var body: some View {
         NavigationStack {
-            
-            if homeViewModel.isloading {
-                ProgressView("loading...")
-            } else {
-                List {
-                    
-                    ForEach(filteredMovies) { movie in
-                        NavigationLink {
-                            // TODO: Why navigation link is getting called even not interacted with cell.
-                            DetailView(movie: movie)
-                        } label: {
-                            ListRowView(movie: movie)
+            VStack {
+                
+                Picker("Category", selection: $homeViewModel.selectedCategory) {
+                    ForEach(Category.allCases) { category in
+                        Text(category.rawValue.capitalized)//.tag(flavor)
+                            .tag(category)
+                    }
+                }
+                
+                VStack {
+                    if homeViewModel.isloading {
+                        ProgressView("loading...")
+                    } else {
+                        List {
+                            ForEach(homeViewModel.filteredMovies) { movie in
+                                NavigationLink {
+                                    DetailView(movie: movie)
+                                } label: {
+                                    ListRowView(movie: movie)
+                                }
+                            }
+                            .onDelete { indexSet in
+                                let moviesToDelete = indexSet.map { homeViewModel.moviesFromCore[$0] }
+                                homeViewModel.deleteMovie(movies: moviesToDelete)
+                            }
                         }
                     }
-                    .onDelete { indexSet in
-                        let moviesToDelete = indexSet.map { fetchedMovies[$0] }
-                        homeViewModel.deleteMovie(movies: moviesToDelete)
-                    }
                 }
-                .searchable(text: $searchMovie, prompt: "Search Movie")
+                .searchable(text: $homeViewModel.searchMovie, prompt: "Search Movie")
                 .navigationTitle("Movies")
                 .refreshable {
+                    print("list refresing request")
                     Task {
-                        await homeViewModel.fetchAndSaveMovies()
+                        await homeViewModel.fetchMoviesFromAPI()
                     }
                 }
+                Spacer()
             }
-        }
-        .onAppear {
-            if homeViewModel.loadedDataFromAPI == false {
-                Task {
-                    await homeViewModel.fetchAndSaveMovies()
-                }
+            .onAppear {
+                homeViewModel.checkAndfetchMovie()
             }
         }
     }
 }
-//
-//#Preview {
-//    HomeView()
-//}
+
+#Preview {
+    HomeView(context: CoreDataManager.shared.persistentContainer.viewContext)
+}
+

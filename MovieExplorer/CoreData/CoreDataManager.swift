@@ -18,8 +18,10 @@ class CoreDataManager {
         if context.hasChanges {
             do {
                 try context.save()
+                print("data saved in core")
             } catch {
                 print("failed to save context: \(error)")
+                print("cannot save data to core")
             }
         }
     }
